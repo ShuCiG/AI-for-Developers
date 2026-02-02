@@ -30,11 +30,13 @@ export default function SignUpPage({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [userExists, setUserExists] = useState<boolean>(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setPasswordError(null)
+    setUserExists(false)
 
     // Validate passwords match
     if (password !== confirmPassword) {
@@ -51,23 +53,43 @@ export default function SignUpPage({
     setLoading(true)
 
     try {
+      // First, check if user already exists
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      // If sign in is successful, user exists
+      if (!signInError && signInData.user) {
+        await supabase.auth.signOut() // Sign out immediately after checking
+        setUserExists(true)
+        return
+      }
+
+      // If user doesn't exist, proceed with sign up
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       })
 
       if (signUpError) {
-        setError(signUpError.message)
+        // Check if error indicates user already exists
+        if (signUpError.message.includes('already registered') || 
+            signUpError.message.includes('already in use')) {
+          setUserExists(true)
+        } else {
+          setError(signUpError.message)
+        }
         return
       }
 
       if (data.user) {
         // Check if email confirmation is required
         if (data.user.identities && data.user.identities.length === 0) {
-          setError("An account with this email already exists")
+          setUserExists(true)
         } else {
-          // Success! Navigate to login or dashboard
-          navigate("/auth/login")
+          // Success! Navigate to dashboard
+          navigate("/")
         }
       }
     } catch (err) {
@@ -135,16 +157,36 @@ export default function SignUpPage({
               {error && (
                 <FieldError>{error}</FieldError>
               )}
+              {userExists && (
+                <div className="p-3 mb-4 text-sm bg-yellow-50 border border-yellow-200 rounded-md">
+                  <p className="font-medium text-yellow-800">Account already exists</p>
+                  <p className="text-yellow-700">An account with this email already exists. Please log in instead.</p>
+                </div>
+              )}
               <Field>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" disabled={loading || userExists}>
                   {loading ? "Creating account..." : "Sign Up"}
                 </Button>
-                <FieldDescription className="text-center">
-                  Already have an account?{" "}
-                  <a href="/auth/login" className="underline">
-                    Login
-                  </a>
-                </FieldDescription>
+                
+                {userExists ? (
+                  <div className="mt-2">
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      onClick={() => navigate("/auth/login", { state: { email, redirectToLogin: true } })}
+                      className="w-full"
+                    >
+                      Go to Login
+                    </Button>
+                  </div>
+                ) : (
+                  <FieldDescription className="text-center">
+                    Already have an account?{" "}
+                    <a href="/auth/login" className="underline">
+                      Login
+                    </a>
+                  </FieldDescription>
+                )}
               </Field>
             </FieldGroup>
           </form>

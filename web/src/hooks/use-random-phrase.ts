@@ -4,13 +4,16 @@ import { generateRandomPhrase, type RandomPhraseResponse } from '@/lib/ai-servic
 import type { Database } from '@/lib/database.types'
 
 type Word = Database['public']['Tables']['words']['Row']
+type WordPair = Database['public']['Tables']['word_pairs']['Row']
 
 export interface UseRandomPhraseReturn {
   phrase: string | null
   words: Word[]
+  wordPair: WordPair | null
   loading: boolean
   error: Error | null
   generatePhrase: () => Promise<void>
+  generatePhraseFromPair: (pairId: string) => Promise<void>
 }
 
 /**
@@ -19,6 +22,7 @@ export interface UseRandomPhraseReturn {
 export function useRandomPhrase(): UseRandomPhraseReturn {
   const [phrase, setPhrase] = useState<string | null>(null)
   const [words, setWords] = useState<Word[]>([])
+  const [wordPair, setWordPair] = useState<WordPair | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
@@ -64,11 +68,69 @@ export function useRandomPhrase(): UseRandomPhraseReturn {
     }
   }, [])
 
+  const generatePhraseFromPair = useCallback(async (pairId: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      setPhrase(null)
+      setWords([])
+      setWordPair(null)
+
+      // Fetch word pair by ID
+      const { data: pair, error: pairError } = await supabase
+        .from('word_pairs')
+        .select('*')
+        .eq('id', pairId)
+        .single()
+
+      if (pairError) {
+        throw new Error(`Failed to fetch word pair: ${pairError.message}`)
+      }
+
+      if (!pair) {
+        throw new Error('Word pair not found')
+      }
+
+      // Create word objects from the word pair
+      const pairWords: Word[] = [
+        {
+          id: `${pair.id}-word1`,
+          word: pair.word1,
+          created_at: pair.created_at,
+        } as Word,
+        {
+          id: `${pair.id}-word2`,
+          word: pair.word2,
+          created_at: pair.created_at,
+        } as Word,
+      ]
+
+      // Generate phrase using the AI service with the word pair
+      const response: RandomPhraseResponse = await generateRandomPhrase([
+        pair.word1,
+        pair.word2,
+      ])
+
+      setPhrase(response.phrase)
+      setWords(pairWords)
+      setWordPair(pair)
+
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('An unknown error occurred')
+      setError(error)
+      console.error('Error generating phrase from word pair:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   return {
     phrase,
     words,
+    wordPair,
     loading,
     error,
     generatePhrase,
+    generatePhraseFromPair,
   }
 }

@@ -35,6 +35,7 @@ services:
       - default
     volumes:
       - ./ai:/app
+    entrypoint: []
     command: ["uv", "run", "--frozen", "python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "-m", "watchdog.watchmedo", "auto-restart", "--directory", "/app", "--patterns=*.py;*.yaml", "--recursive", "--no-restart-on-command-exit", "--debounce-interval", "0.2", "--", "python3", "run.py"]
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://localhost:$$PORT/health"]
