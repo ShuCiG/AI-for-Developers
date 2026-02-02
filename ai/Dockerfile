@@ -7,6 +7,10 @@ ENV UV_LINK_MODE=copy
 
 WORKDIR /app
 
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
   curl python3-dev \

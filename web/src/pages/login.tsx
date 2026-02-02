@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +24,7 @@ export default function LoginPage({
   ...props
 }: React.ComponentProps<"div">) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const urlError = searchParams.get('error')
 
@@ -31,6 +32,15 @@ export default function LoginPage({
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(urlError)
+  const [infoMessage, setInfoMessage] = useState<string | null>(null)
+
+  // Check if we were redirected from signup with an email
+  useEffect(() => {
+    if (location.state?.redirectToLogin) {
+      setEmail(location.state.email || "")
+      setInfoMessage("Please log in with your existing account.")
+    }
+  }, [location.state])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -97,6 +107,11 @@ export default function LoginPage({
           {error && (
             <div className="mb-4 p-3 text-sm text-red-800 bg-red-50 border border-red-200 rounded-md">
               {error}
+            </div>
+          )}
+          {infoMessage && (
+            <div className="mb-4 p-3 text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-md">
+              {infoMessage}
             </div>
           )}
           <form onSubmit={handleEmailLogin}>
