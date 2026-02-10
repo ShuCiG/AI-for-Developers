@@ -10,6 +10,10 @@ from supabase import create_client, Client
 
 from crews.random_phrase_crew.crew import RandomPhraseCrew
 from crews.random_phrase_crew.schemas import PhraseOutput
+from crews.example_sentences_crew.crew import ExampleSentencesCrew
+from crews.example_sentences_crew.schemas import ExampleSentencesOutput
+from crews.difficulty_classifier_crew.crew import DifficultyClassifierCrew
+from crews.difficulty_classifier_crew.schemas import DifficultyClassificationOutput
 
 from lib.tracer import traceable
 
@@ -118,6 +122,71 @@ async def generate_random_phrase(words: list[str], user_context: str) -> PhraseO
     return PhraseOutput(phrase=str(result), words=words)
 
 
+@traceable
+async def generate_example_sentences(word1: str, word2: str, user_context: str) -> ExampleSentencesOutput:
+    """
+    Generate example sentences using the ExampleSentencesCrew.
+
+    Args:
+        word1: First word from the word pair
+        word2: Second word from the word pair
+        user_context: User context to personalize the sentences
+
+    Returns:
+        ExampleSentencesOutput with sentences and words
+    """
+    inputs = {
+        'word1': word1,
+        'word2': word2,
+        'user_context': user_context or ""
+    }
+
+    result = await ExampleSentencesCrew().crew().kickoff_async(inputs=inputs)
+
+    # CrewAI returns a result with a .pydantic attribute containing the Pydantic model
+    if hasattr(result, 'pydantic'):
+        return result.pydantic
+
+    # Fallback - return a basic ExampleSentencesOutput
+    return ExampleSentencesOutput(sentences=[str(result)], word1=word1, word2=word2)
+
+
+@traceable
+async def classify_difficulty(word1: str, word2: str, user_context: str) -> DifficultyClassificationOutput:
+    """
+    Classify word difficulty using the DifficultyClassifierCrew.
+
+    Args:
+        word1: First word from the word pair
+        word2: Second word from the word pair
+        user_context: User context to personalize the classification
+
+    Returns:
+        DifficultyClassificationOutput with difficulty levels and reasoning
+    """
+    inputs = {
+        'word1': word1,
+        'word2': word2,
+        'user_context': user_context or ""
+    }
+
+    result = await DifficultyClassifierCrew().crew().kickoff_async(inputs=inputs)
+
+    # CrewAI returns a result with a .pydantic attribute containing the Pydantic model
+    if hasattr(result, 'pydantic'):
+        return result.pydantic
+
+    # Fallback - return a basic DifficultyClassificationOutput
+    return DifficultyClassificationOutput(
+        word1=word1,
+        word2=word2,
+        difficulty1="intermediate",
+        difficulty2="intermediate",
+        reasoning1="Unable to classify",
+        reasoning2="Unable to classify"
+    )
+
+
 @app.route("/health", methods=["GET"])
 async def health():
     """Health check endpoint."""
@@ -162,6 +231,111 @@ async def get_random_phrase():
 
         # Generate the phrase
         result = await generate_random_phrase(words, user_context or "")
+
+        return jsonify(result.model_dump()), 200
+
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+
+@app.route("/api/example-sentences", methods=["POST"])
+@require_auth
+async def get_example_sentences():
+    """
+    Generate example sentences for a word pair based on user context.
+
+    Request body:
+        {
+            "word1": "first word",
+            "word2": "second word"
+        }
+
+    Headers:
+        Authorization: Bearer <jwt_token>
+
+    Response:
+        {
+            "sentences": ["sentence 1", "sentence 2", "sentence 3"],
+            "word1": "first word",
+            "word2": "second word"
+        }
+    """
+    try:
+        # Get words from request body
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "Request body is required"}), 400
+
+        word1 = data.get("word1")
+        word2 = data.get("word2")
+
+        if not word1 or not word2:
+            return jsonify({"error": "Request body must include 'word1' and 'word2' fields"}), 400
+
+        if not isinstance(word1, str) or not isinstance(word2, str):
+            return jsonify({"error": "'word1' and 'word2' must be strings"}), 400
+
+        # Get user context from Supabase
+        user_id = request.user.id
+        user_context = await get_user_context(user_id)
+
+        # Generate the example sentences
+        result = await generate_example_sentences(word1, word2, user_context or "")
+
+        return jsonify(result.model_dump()), 200
+
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+
+@app.route("/api/classify-difficulty", methods=["POST"])
+@require_auth
+async def get_difficulty_classification():
+    """
+    Classify difficulty level for a word pair based on user context.
+
+    Request body:
+        {
+            "word1": "first word",
+            "word2": "second word"
+        }
+
+    Headers:
+        Authorization: Bearer <jwt_token>
+
+    Response:
+        {
+            "word1": "first word",
+            "word2": "second word",
+            "difficulty1": "beginner|intermediate|advanced",
+            "difficulty2": "beginner|intermediate|advanced",
+            "reasoning1": "explanation for word1",
+            "reasoning2": "explanation for word2"
+        }
+    """
+    try:
+        # Get words from request body
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "Request body is required"}), 400
+
+        word1 = data.get("word1")
+        word2 = data.get("word2")
+
+        if not word1 or not word2:
+            return jsonify({"error": "Request body must include 'word1' and 'word2' fields"}), 400
+
+        if not isinstance(word1, str) or not isinstance(word2, str):
+            return jsonify({"error": "'word1' and 'word2' must be strings"}), 400
+
+        # Get user context from Supabase
+        user_id = request.user.id
+        user_context = await get_user_context(user_id)
+
+        # Classify the difficulty
+        result = await classify_difficulty(word1, word2, user_context or "")
 
         return jsonify(result.model_dump()), 200
 

@@ -1,0 +1,28 @@
+sentence_generation_task:
+  description: >
+    Generate 2-3 natural, contextual example sentences using both words: {word1} and {word2}
+
+    User context: {user_context}
+
+    Your task is to create clear, natural example sentences that demonstrate how to use both words
+    together in different contexts. Each sentence should:
+    - Be grammatically correct and natural-sounding
+    - Use both words in a meaningful way
+    - Show different sentence structures or contexts when possible
+    - Be helpful for language learners
+    - Consider the user context to make examples more relevant
+
+    You must return your response as a JSON object with the following structure:
+    {{
+      "sentences": ["sentence 1 here", "sentence 2 here", "sentence 3 here"],
+      "word1": "{word1}",
+      "word2": "{word2}"
+    }}
+
+    Where "sentences" is an array of 2-3 example sentences, and "word1" and "word2" are the
+    original words from the input.
+  expected_output: >
+    A JSON object with three fields: "sentences" (array of 2-3 strings) containing natural example
+    sentences that demonstrate both words in context, "word1" (string) containing the first word,
+    and "word2" (string) containing the second word.
+  agent: sentence_generator

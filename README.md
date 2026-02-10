@@ -114,16 +114,63 @@ supabase db reset
 
 ### 5. Start the Application
 
+#### Option 1: Quick Start (Recommended)
+
+Use the provided startup script:
+
+**Windows (PowerShell):**
+```powershell
+.\start.ps1
+```
+
+**Linux/macOS:**
 ```bash
-# Start all services with Docker Compose
-docker compose up --build
+chmod +x start.sh
+./start.sh
+```
+
+This script will:
+- Start Supabase locally
+- Start all Docker services
+- Wait for services to be ready
+- Display service URLs
+
+#### Option 2: Manual Start
+
+Start Supabase first:
+```bash
+supabase start
+```
+
+Then start Docker services:
+```bash
+docker compose up -d
 ```
 
 This will start:
 - **Web Frontend**: http://localhost:5173
 - **AI Backend**: http://localhost:8000
 - **Phoenix Observability**: http://localhost:6006
+- **Supabase Studio**: http://127.0.0.1:54323
 - **Phoenix Database**: Internal PostgreSQL instance
+
+### 6. Stop the Application
+
+**Windows (PowerShell):**
+```powershell
+.\stop.ps1
+```
+
+**Linux/macOS:**
+```bash
+./stop.sh
+```
+
+Or manually:
+```bash
+docker compose down
+supabase stop
+```
 
 ### 7. Access the Application
 

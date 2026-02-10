@@ -15,10 +15,11 @@ services:
     networks:
       - default
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:5173/"]
-      interval: 5s
-      timeout: 10s
-      retries: 25
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --timeout=3 --spider http://127.0.0.1:5173/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
 
   ai:
     build:
@@ -30,7 +31,9 @@ services:
     environment:
       - PORT=8000
     depends_on:
-      - phoenix
+      phoenix:
+        condition: service_started
+    restart: unless-stopped
     networks:
       - default
     volumes:
@@ -38,28 +41,37 @@ services:
     entrypoint: []
     command: ["uv", "run", "--frozen", "python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "-m", "watchdog.watchmedo", "auto-restart", "--directory", "/app", "--patterns=*.py;*.yaml", "--recursive", "--no-restart-on-command-exit", "--debounce-interval", "0.2", "--", "python3", "run.py"]
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:$$PORT/health"]
-      interval: 5s
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 25
+      retries: 3
+      start_period: 90s
 
   phoenix:
     image: arizephoenix/phoenix:version-12.4.0
     env_file: ./phoenix/.env
     ports:
       - "6006:6006"
+    restart: unless-stopped
     networks:
       - default
     depends_on:
-      - phoenix-db
+      phoenix-db:
+        condition: service_healthy
 
   phoenix-db:
     image: "postgres:16.4-alpine"
     env_file: ./phoenix/.env
+    restart: unless-stopped
     networks:
       - default
     volumes:
       - phoenix-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   phoenix-data:

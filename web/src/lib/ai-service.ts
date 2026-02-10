@@ -7,6 +7,21 @@ export interface RandomPhraseResponse {
   words_used: string[]
 }
 
+export interface ExampleSentencesResponse {
+  sentences: string[]
+  word1: string
+  word2: string
+}
+
+export interface DifficultyClassificationResponse {
+  word1: string
+  word2: string
+  difficulty1: string
+  difficulty2: string
+  reasoning1: string
+  reasoning2: string
+}
+
 /**
  * Generate a random phrase using the AI service
  * @param words - Array of words to use in the phrase
@@ -32,6 +47,68 @@ export async function generateRandomPhrase(words: string[]): Promise<RandomPhras
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
     throw new Error(errorData.error || `Failed to generate phrase: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+/**
+ * Generate example sentences for a word pair using the AI service
+ * @param word1 - First word from the word pair
+ * @param word2 - Second word from the word pair
+ * @returns Promise with the generated example sentences and words
+ */
+export async function generateExampleSentences(word1: string, word2: string): Promise<ExampleSentencesResponse> {
+  // Get the current session token
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session) {
+    throw new Error('User must be authenticated to generate example sentences')
+  }
+
+  const response = await fetch(`${AI_SERVICE_URL}/api/example-sentences`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ word1, word2 }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(errorData.error || `Failed to generate example sentences: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+/**
+ * Classify difficulty level for a word pair using the AI service
+ * @param word1 - First word from the word pair
+ * @param word2 - Second word from the word pair
+ * @returns Promise with the difficulty classification and reasoning
+ */
+export async function classifyDifficulty(word1: string, word2: string): Promise<DifficultyClassificationResponse> {
+  // Get the current session token
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session) {
+    throw new Error('User must be authenticated to classify difficulty')
+  }
+
+  const response = await fetch(`${AI_SERVICE_URL}/api/classify-difficulty`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ word1, word2 }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(errorData.error || `Failed to classify difficulty: ${response.statusText}`)
   }
 
   return response.json()

@@ -1,0 +1,36 @@
+difficulty_classification_task:
+  description: >
+    Classify both words by difficulty level: {word1} and {word2}
+
+    User context: {user_context}
+
+    Your task is to classify each word by its difficulty level for language learners. Consider:
+    - Word frequency in common usage
+    - Grammatical complexity
+    - Length and spelling difficulty
+    - Cultural context requirements
+    - Common learning progression
+    - Consider the user context to make classifications more relevant
+
+    Difficulty levels:
+    - "beginner": Common, simple words typically learned early (e.g., "cat", "hello", "water")
+    - "intermediate": Words requiring some vocabulary foundation (e.g., "analyze", "significant", "develop")
+    - "advanced": Complex or specialized words (e.g., "sophisticated", "paradigm", "ubiquitous")
+
+    You must return your response as a JSON object with the following structure:
+    {{
+      "word1": "{word1}",
+      "word2": "{word2}",
+      "difficulty1": "beginner|intermediate|advanced",
+      "difficulty2": "beginner|intermediate|advanced",
+      "reasoning1": "Brief explanation for word1 classification",
+      "reasoning2": "Brief explanation for word2 classification"
+    }}
+
+    Where "difficulty1" and "difficulty2" are one of: "beginner", "intermediate", or "advanced",
+    and "reasoning1" and "reasoning2" provide brief explanations (1-2 sentences) for each classification.
+  expected_output: >
+    A JSON object with six fields: "word1" and "word2" (strings) containing the original words,
+    "difficulty1" and "difficulty2" (strings) containing one of "beginner", "intermediate", or "advanced",
+    and "reasoning1" and "reasoning2" (strings) containing brief explanations for each classification.
+  agent: difficulty_classifier
