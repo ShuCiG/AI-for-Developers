@@ -1,6 +1,10 @@
 import { supabase } from './supabase'
 
-const AI_SERVICE_URL = import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:8000'
+// Use empty string for same-origin (proxy) mode, otherwise explicit URL
+const AI_SERVICE_URL =
+  import.meta.env.VITE_AI_SERVICE_URL === ""
+    ? ""
+    : import.meta.env.VITE_AI_SERVICE_URL || "http://localhost:8000"
 
 export interface RandomPhraseResponse {
   phrase: string
@@ -20,6 +24,11 @@ export interface DifficultyClassificationResponse {
   difficulty2: string
   reasoning1: string
   reasoning2: string
+}
+
+export interface WordsGameResponse {
+  text_with_placeholders: string
+  words_in_order: string[]
 }
 
 /**
@@ -109,6 +118,35 @@ export async function classifyDifficulty(word1: string, word2: string): Promise<
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
     throw new Error(errorData.error || `Failed to classify difficulty: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+/**
+ * Generate text with placeholders for the words game
+ * @param words - Array of exactly 3 words
+ * @returns Promise with text_with_placeholders and words_in_order
+ */
+export async function generateWordsGameText(words: string[]): Promise<WordsGameResponse> {
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session) {
+    throw new Error('User must be authenticated to play the words game')
+  }
+
+  const response = await fetch(`${AI_SERVICE_URL}/api/words-game`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ words }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(errorData.error || `Failed to generate words game: ${response.statusText}`)
   }
 
   return response.json()

@@ -12,6 +12,9 @@ services:
     restart: unless-stopped
     env_file:
       - ./web/.env.local
+    environment:
+      - VITE_AI_SERVICE_URL=
+      - VITE_PROXY_AI_TARGET=http://ai:8000
     networks:
       - default
     healthcheck:
@@ -38,14 +41,35 @@ services:
       - default
     volumes:
       - ./ai:/app
-    entrypoint: []
-    command: ["uv", "run", "--frozen", "python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "-m", "watchdog.watchmedo", "auto-restart", "--directory", "/app", "--patterns=*.py;*.yaml", "--recursive", "--no-restart-on-command-exit", "--debounce-interval", "0.2", "--", "python3", "run.py"]
+    entrypoint:
+      - uv
+      - run
+      - --frozen
+      - python
+      - -m
+      - debugpy
+      - --listen
+      - 0.0.0.0:5678
+      - -m
+      - watchdog.watchmedo
+      - auto-restart
+      - --directory
+      - /app
+      - --patterns=*.py;*.yaml
+      - --recursive
+      - --no-restart-on-command-exit
+      - --debounce-interval
+      - "0.2"
+      - --
+      - python3
+      - run.py
+    command: []
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 3
-      start_period: 90s
+      start_period: 120s
 
   phoenix:
     image: arizephoenix/phoenix:version-12.4.0

@@ -1,0 +1,25 @@
+words_game_task:
+  description: >
+    Create a short text (1-2 sentences) for a fill-in-the-blank vocabulary game.
+
+    You are given exactly 3 words: {words}
+
+    User context: {user_context}
+
+    Your task:
+    1. Write a natural, coherent text (1-2 sentences) that uses ALL 3 words exactly once each
+    2. Replace each word with three underscores ___ as a placeholder
+    3. Return the text with placeholders and the list of words in the order they appear
+       (first ___ = first word in words_in_order, second ___ = second word, etc.)
+
+    Example: If words are ["quick", "fox", "lazy"]
+    - Good output: text_with_placeholders="The ___ brown ___ jumped over the ___ dog."
+                   words_in_order=["quick", "fox", "lazy"]
+
+    CRITICAL: You MUST use all 3 words. Each word appears exactly once. The order in
+    words_in_order must match the order of ___ placeholders in the text (left to right).
+  expected_output: >
+    A JSON object with:
+    - "text_with_placeholders": string with ___ where each word goes
+    - "words_in_order": array of the 3 words in the order they appear in the text
+  agent: words_game_writer

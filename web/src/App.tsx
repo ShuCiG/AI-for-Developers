@@ -8,6 +8,7 @@ import SignUpPage from './pages/signup'
 import WordsPage from './pages/words'
 import RandomPhrasePage from './pages/random-phrase'
 import WordPairsPage from './pages/word-pairs'
+import WordsGamePage from './pages/words-game'
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
             <Route path="/words" element={<WordsPage />} />
             <Route path="/random-phrase" element={<RandomPhrasePage />} />
             <Route path="/word-pairs" element={<WordPairsPage />} />
+            <Route path="/words-game" element={<WordsGamePage />} />
           </Route>
 
           {/* Default redirect */}

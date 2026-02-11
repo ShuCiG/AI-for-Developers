@@ -4,6 +4,7 @@ import {
   IconDashboard,
   IconDatabase,
   IconInnerShadowTop,
+  IconPuzzle,
   IconSparkles,
 } from "@tabler/icons-react"
 
@@ -49,6 +50,11 @@ const data = {
       name: "Random Phrase",
       url: "/random-phrase",
       icon: IconSparkles,
+    },
+    {
+      name: "Words game",
+      url: "/words-game",
+      icon: IconPuzzle,
     },
   ],
 }

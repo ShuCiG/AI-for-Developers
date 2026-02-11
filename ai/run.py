@@ -8,12 +8,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from supabase import create_client, Client
 
-from crews.random_phrase_crew.crew import RandomPhraseCrew
-from crews.random_phrase_crew.schemas import PhraseOutput
-from crews.example_sentences_crew.crew import ExampleSentencesCrew
-from crews.example_sentences_crew.schemas import ExampleSentencesOutput
-from crews.difficulty_classifier_crew.crew import DifficultyClassifierCrew
-from crews.difficulty_classifier_crew.schemas import DifficultyClassificationOutput
+# Lazy imports for crews to speed up startup
+# Crews are imported only when needed to reduce initial load time
 
 from lib.tracer import traceable
 
@@ -96,7 +92,7 @@ async def get_user_context(user_id: str) -> Optional[str]:
 
 
 @traceable
-async def generate_random_phrase(words: list[str], user_context: str) -> PhraseOutput:
+async def generate_random_phrase(words: list[str], user_context: str):
     """
     Generate a random phrase using the RandomPhraseCrew.
 
@@ -107,6 +103,10 @@ async def generate_random_phrase(words: list[str], user_context: str) -> PhraseO
     Returns:
         PhraseOutput with phrase and words used
     """
+    # Lazy import to speed up startup
+    from crews.random_phrase_crew.crew import RandomPhraseCrew
+    from crews.random_phrase_crew.schemas import PhraseOutput
+    
     inputs = {
         'words': jsonify(words).get_data(as_text=True),
         'user_context': jsonify(user_context).get_data(as_text=True)
@@ -123,7 +123,7 @@ async def generate_random_phrase(words: list[str], user_context: str) -> PhraseO
 
 
 @traceable
-async def generate_example_sentences(word1: str, word2: str, user_context: str) -> ExampleSentencesOutput:
+async def generate_example_sentences(word1: str, word2: str, user_context: str):
     """
     Generate example sentences using the ExampleSentencesCrew.
 
@@ -135,6 +135,10 @@ async def generate_example_sentences(word1: str, word2: str, user_context: str) 
     Returns:
         ExampleSentencesOutput with sentences and words
     """
+    # Lazy import to speed up startup
+    from crews.example_sentences_crew.crew import ExampleSentencesCrew
+    from crews.example_sentences_crew.schemas import ExampleSentencesOutput
+    
     inputs = {
         'word1': word1,
         'word2': word2,
@@ -152,7 +156,39 @@ async def generate_example_sentences(word1: str, word2: str, user_context: str) 
 
 
 @traceable
-async def classify_difficulty(word1: str, word2: str, user_context: str) -> DifficultyClassificationOutput:
+async def generate_words_game(words: list[str], user_context: str):
+    """
+    Generate text with placeholders for the words game.
+
+    Args:
+        words: List of 3 words to use in the game
+        user_context: User context for personalization
+
+    Returns:
+        WordsGameOutput with text_with_placeholders and words_in_order
+    """
+    from crews.words_game_crew.crew import WordsGameCrew
+    from crews.words_game_crew.schemas import WordsGameOutput
+
+    import json
+    inputs = {
+        "words": json.dumps(words),
+        "user_context": user_context or "",
+    }
+
+    result = await WordsGameCrew().crew().kickoff_async(inputs=inputs)
+
+    if hasattr(result, "pydantic"):
+        return result.pydantic
+
+    return WordsGameOutput(
+        text_with_placeholders=str(result),
+        words_in_order=words,
+    )
+
+
+@traceable
+async def classify_difficulty(word1: str, word2: str, user_context: str):
     """
     Classify word difficulty using the DifficultyClassifierCrew.
 
@@ -164,6 +200,10 @@ async def classify_difficulty(word1: str, word2: str, user_context: str) -> Diff
     Returns:
         DifficultyClassificationOutput with difficulty levels and reasoning
     """
+    # Lazy import to speed up startup
+    from crews.difficulty_classifier_crew.crew import DifficultyClassifierCrew
+    from crews.difficulty_classifier_crew.schemas import DifficultyClassificationOutput
+    
     inputs = {
         'word1': word1,
         'word2': word2,
@@ -231,6 +271,9 @@ async def get_random_phrase():
 
         # Generate the phrase
         result = await generate_random_phrase(words, user_context or "")
+        
+        # Import PhraseOutput for type checking
+        from crews.random_phrase_crew.schemas import PhraseOutput
 
         return jsonify(result.model_dump()), 200
 
@@ -336,6 +379,48 @@ async def get_difficulty_classification():
 
         # Classify the difficulty
         result = await classify_difficulty(word1, word2, user_context or "")
+
+        return jsonify(result.model_dump()), 200
+
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+
+@app.route("/api/words-game", methods=["POST"])
+@require_auth
+async def get_words_game():
+    """
+    Generate text with placeholders for the words game.
+
+    Request body:
+        {
+            "words": ["word1", "word2", "word3"]
+        }
+
+    Headers:
+        Authorization: Bearer <jwt_token>
+
+    Response:
+        {
+            "text_with_placeholders": "The ___ jumped over the ___.",
+            "words_in_order": ["word1", "word2", "word3"]
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data or "words" not in data:
+            return jsonify({"error": "Request body must include 'words' array"}), 400
+
+        words = data.get("words", [])
+
+        if not isinstance(words, list) or len(words) != 3:
+            return jsonify({"error": "'words' must be an array of exactly 3 strings"}), 400
+
+        user_id = request.user.id
+        user_context = await get_user_context(user_id)
+
+        result = await generate_words_game(words, user_context or "")
 
         return jsonify(result.model_dump()), 200
 
