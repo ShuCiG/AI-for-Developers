@@ -1,0 +1,15 @@
+translation_task:
+  description: >
+    The user asked a translation question. Provide a helpful, accurate response.
+
+    User message: {message}
+
+    Recent conversation:
+    {history}
+
+    Context (if known): source language {source_language}, target language {target_language}.
+
+    Respond in plain text. Include the translation and, if useful, a short explanation (e.g. literal meaning, formality). Do not use JSON or markdown code blocks for the main answer.
+  expected_output: >
+    A single "content" string: the full reply to the user as you would show in a chat bubble.
+  agent: translator

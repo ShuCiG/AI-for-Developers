@@ -4,6 +4,7 @@ import {
   IconDashboard,
   IconDatabase,
   IconInnerShadowTop,
+  IconMessageCircle,
   IconPuzzle,
   IconSparkles,
 } from "@tabler/icons-react"
@@ -33,6 +34,11 @@ const data = {
       title: "Dashboard",
       url: "/dashboard",
       icon: IconDashboard,
+    },
+    {
+      title: "Chat",
+      url: "/chat",
+      icon: IconMessageCircle,
     },
   ],
   documents: [

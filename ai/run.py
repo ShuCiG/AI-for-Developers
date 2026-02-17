@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import warnings
 from functools import wraps
@@ -37,6 +38,12 @@ CORS(app, resources={
 SUPABASE_URL = os.getenv("SUPABASE_URL", "http://127.0.0.1:54321")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+# Optional service role client for server-side writes (chats, word_pairs)
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+supabase_admin: Optional[Client] = (
+    create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) if SUPABASE_SERVICE_ROLE_KEY else None
+)
 
 
 def require_auth(f):
@@ -108,8 +115,8 @@ async def generate_random_phrase(words: list[str], user_context: str):
     from crews.random_phrase_crew.schemas import PhraseOutput
     
     inputs = {
-        'words': jsonify(words).get_data(as_text=True),
-        'user_context': jsonify(user_context).get_data(as_text=True)
+        'words': json.dumps(words),
+        'user_context': user_context or ""
     }
 
     result = await RandomPhraseCrew().crew().kickoff_async(inputs=inputs)
@@ -187,6 +194,102 @@ async def generate_words_game(words: list[str], user_context: str):
     )
 
 
+def _format_history(history: list[dict[str, str]]) -> str:
+    """Format conversation history for crew prompts."""
+    if not history:
+        return "(No previous messages)"
+    lines = []
+    for h in history[-10:]:  # last 10 turns
+        role = h.get("role", "user")
+        content = (h.get("content") or "").strip()
+        if role == "user":
+            lines.append(f"User: {content}")
+        else:
+            lines.append(f"Assistant: {content}")
+    return "\n".join(lines)
+
+
+OFF_TOPIC_REFUSAL = (
+    "I appreciate your message! However, I'm your language tutor and can only help with "
+    "language-related questions. I can help you with translations, new vocabulary, grammar, "
+    "example sentences, or practice. What would you like to work on?"
+)
+
+
+@traceable
+async def run_tutor_router(message: str, history: list[dict[str, str]]):
+    """Run router crew and return RouterOutput."""
+    from crews.tutor_router_crew.crew import TutorRouterCrew
+    from crews.tutor_router_crew.schemas import RouterOutput
+
+    history_str = _format_history(history)
+    inputs = {
+        "message": message,
+        "history": history_str,
+    }
+    result = await TutorRouterCrew().crew().kickoff_async(inputs=inputs)
+    if hasattr(result, "pydantic"):
+        return result.pydantic
+    return RouterOutput(intent="off_topic", reasoning="Fallback", source_language=None, target_language=None)
+
+
+@traceable
+async def run_translation(message: str, history: list[dict[str, str]], source_lang: Optional[str], target_lang: Optional[str]):
+    """Run translation crew and return content."""
+    from crews.translation_crew.crew import TranslationCrew
+    from crews.translation_crew.schemas import TranslationOutput
+
+    history_str = _format_history(history)
+    inputs = {
+        "message": message,
+        "history": history_str,
+        "source_language": source_lang or "unknown",
+        "target_language": target_lang or "unknown",
+    }
+    result = await TranslationCrew().crew().kickoff_async(inputs=inputs)
+    if hasattr(result, "pydantic"):
+        return result.pydantic.content
+    return str(result)
+
+
+@traceable
+async def run_vocabulary(message: str, history: list[dict[str, str]], source_lang: Optional[str], target_lang: Optional[str]):
+    """Run vocabulary crew and return WordCardOutput."""
+    from crews.vocabulary_crew.crew import VocabularyCrew
+    from crews.vocabulary_crew.schemas import WordCardOutput
+
+    history_str = _format_history(history)
+    inputs = {
+        "message": message,
+        "history": history_str,
+        "source_language": source_lang or "unknown",
+        "target_language": target_lang or "unknown",
+    }
+    result = await VocabularyCrew().crew().kickoff_async(inputs=inputs)
+    if hasattr(result, "pydantic"):
+        return result.pydantic
+    return WordCardOutput(word="", translation="", example_sentence="", definition=None)
+
+
+@traceable
+async def run_general_tutor(message: str, history: list[dict[str, str]], source_lang: Optional[str], target_lang: Optional[str]):
+    """Run general tutor crew and return content."""
+    from crews.general_tutor_crew.crew import GeneralTutorCrew
+    from crews.general_tutor_crew.schemas import GeneralTutorOutput
+
+    history_str = _format_history(history)
+    inputs = {
+        "message": message,
+        "history": history_str,
+        "source_language": source_lang or "unknown",
+        "target_language": target_lang or "unknown",
+    }
+    result = await GeneralTutorCrew().crew().kickoff_async(inputs=inputs)
+    if hasattr(result, "pydantic"):
+        return result.pydantic.content
+    return str(result)
+
+
 @traceable
 async def classify_difficulty(word1: str, word2: str, user_context: str):
     """
@@ -228,7 +331,7 @@ async def classify_difficulty(word1: str, word2: str, user_context: str):
 
 
 @app.route("/health", methods=["GET"])
-async def health():
+def health():
     """Health check endpoint."""
     return jsonify({"status": "healthy"}), 200
 
@@ -426,6 +529,124 @@ async def get_words_game():
 
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+
+@app.route("/api/chat", methods=["POST"])
+@require_auth
+async def post_chat():
+    """
+    Handle chat message: route by intent, run specialist crew, return text or word_card.
+
+    Body: { "chat_id": "uuid" (optional), "message": "user text", "history": [ { "role", "content" } ] }
+    Returns: { "content": "..." } or { "response_type": "word_card", "payload": { "word", "translation", ... } }
+    """
+    try:
+        data = request.get_json()
+        if not data or "message" not in data:
+            return jsonify({"error": "Request body must include 'message'"}), 400
+
+        message = (data.get("message") or "").strip()
+        if not message:
+            return jsonify({"error": "Message cannot be empty"}), 400
+
+        history = data.get("history")
+        if history is not None and not isinstance(history, list):
+            return jsonify({"error": "'history' must be an array"}), 400
+        history = history or []
+
+        user_id = request.user.id
+        chat_id = data.get("chat_id")
+
+        # Optional: ensure chat belongs to user (if backend will persist)
+        if chat_id and supabase_admin:
+            try:
+                r = supabase_admin.table("chats").select("id").eq("id", chat_id).eq("user_id", user_id).single().execute()
+                if not r.data:
+                    return jsonify({"error": "Chat not found or access denied"}), 404
+            except Exception:
+                return jsonify({"error": "Chat not found or access denied"}), 404
+
+        # Run router
+        router_out = await run_tutor_router(message, history)
+        intent = (router_out.intent or "").strip().lower()
+        source_lang = getattr(router_out, "source_language", None) or None
+        target_lang = getattr(router_out, "target_language", None) or None
+
+        # Dispatch by intent
+        if intent == "off_topic":
+            return jsonify({"content": OFF_TOPIC_REFUSAL}), 200
+
+        if intent == "translation":
+            content = await run_translation(message, history, source_lang, target_lang)
+            return jsonify({"content": content}), 200
+
+        if intent == "new_word":
+            card = await run_vocabulary(message, history, source_lang, target_lang)
+            payload = {
+                "word": card.word,
+                "translation": card.translation,
+                "example_sentence": card.example_sentence,
+                "definition": getattr(card, "definition", None),
+            }
+            return jsonify({"response_type": "word_card", "payload": payload}), 200
+
+        # grammar, example_sentences, practice, cultural, save_word
+        content = await run_general_tutor(message, history, source_lang, target_lang)
+        return jsonify({"content": content}), 200
+
+    except asyncio.TimeoutError:
+        return jsonify({"error": "Request timed out"}), 504
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/chat/save-word", methods=["POST"])
+@require_auth
+async def post_chat_save_word():
+    """
+    Save a word pair from chat (e.g. from word card "Add to my list").
+
+    Body: { "word1": "...", "word2": "...", "description": "..." (optional) }
+    Requires SUPABASE_SERVICE_ROLE_KEY for server-side insert; otherwise use frontend Supabase insert.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request body is required"}), 400
+
+        word1 = data.get("word1") or ""
+        word2 = data.get("word2") or ""
+        description = data.get("description")
+
+        if not word1.strip() or not word2.strip():
+            return jsonify({"error": "word1 and word2 are required"}), 400
+
+        user_id = request.user.id
+
+        if not supabase_admin:
+            return (
+                jsonify(
+                    {
+                        "error": "Server-side save is not configured (SUPABASE_SERVICE_ROLE_KEY). "
+                        "Use frontend Supabase to insert into word_pairs."
+                    }
+                ),
+                503,
+            )
+
+        supabase_admin.table("word_pairs").insert(
+            {
+                "user_id": user_id,
+                "word1": word1.strip(),
+                "word2": word2.strip(),
+                "description": (description or "").strip() or None,
+            }
+        ).execute()
+
+        return jsonify({"ok": True}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
