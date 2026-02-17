@@ -4,6 +4,7 @@ import {
   IconDashboard,
   IconDatabase,
   IconInnerShadowTop,
+  IconMessageCircle,
   IconPuzzle,
   IconSparkles,
   IconMessageCircle,

@@ -32,6 +32,7 @@ function App() {
             <Route path="/word-pairs" element={<WordPairsPage />} />
             <Route path="/words-game" element={<WordsGamePage />} />
             <Route path="/chat" element={<ChatPage />} />
+            <Route path="/chat/:chatId" element={<ChatPage />} />
           </Route>
 
           {/* Default redirect */}

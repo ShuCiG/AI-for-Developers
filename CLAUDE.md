@@ -34,6 +34,11 @@ Only create migration files. Let the developer apply them manually.
 7. Backend returns generated phrase + words
 8. Frontend displays result
 
+### Request Flow (Language Tutor Chat)
+1. Chat UI: list of chats and messages in Supabase (`chats`, `chat_messages`). User sends a message; frontend calls `/api/chat` with JWT, `message`, and `history`.
+2. Backend: router crew classifies intent (translation, new_word, general_tutor, off_topic), then runs the matching specialist crew. Responses: `{ "content": "..." }` or `{ "response_type": "word_card", "payload": { "word", "translation", "example_sentence", "definition" } }`.
+3. Word cards: frontend shows "Add to my list"; on click inserts into `word_pairs` via Supabase client. Optional `/api/chat/save-word` uses `SUPABASE_SERVICE_ROLE_KEY` if set. Help button on chat page explains capabilities and examples.
+
 ### Authentication Flow
 - Supabase Auth with JWT tokens
 - Profile auto-created via database trigger on signup
@@ -103,6 +108,7 @@ Only create migration files. Let the developer apply them manually.
 - `PHOENIX_COLLECTOR_ENDPOINT` - Phoenix OTLP endpoint
 - `SUPABASE_URL` - Supabase URL (use `http://host.docker.internal:54321` in Docker)
 - `SUPABASE_ANON_KEY` - Supabase anonymous key
+- `SUPABASE_SERVICE_ROLE_KEY` (optional) - For server-side writes; chat "Add to my list" works from frontend without it
 
 **Phoenix** (`phoenix/.env`):
 - `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PASSWORD`

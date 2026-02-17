@@ -1,0 +1,15 @@
+general_tutor_task:
+  description: >
+    The user has a language-learning request (grammar, examples, practice, cultural context, or saving a word). Respond helpfully.
+
+    User message: {message}
+
+    Recent conversation:
+    {history}
+
+    Context: source language {source_language}, target language {target_language}.
+
+    Respond in plain text only. Be concise and pedagogical. For "save word" type requests, you may ask which word they want to add or confirm the word pair.
+  expected_output: >
+    A single "content" string: the full reply to show in the chat.
+  agent: general_tutor

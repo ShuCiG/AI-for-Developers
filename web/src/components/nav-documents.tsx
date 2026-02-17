@@ -1,6 +1,6 @@
 "use client"
 
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import {
   IconDots,
   IconFolder,
@@ -36,14 +36,21 @@ export function NavDocuments({
   }[]
 }) {
   const { isMobile } = useSidebar()
+  const location = useLocation()
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel>Documents</SidebarGroupLabel>
       <SidebarMenu>
-        {items.map((item) => (
+        {items.map((item) => {
+          const isActive = location.pathname === item.url
+          return (
           <SidebarMenuItem key={item.name}>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive}
+              className={isActive ? "bg-primary/15 text-primary font-medium" : undefined}
+            >
               <Link to={item.url}>
                 <item.icon />
                 <span>{item.name}</span>
@@ -80,7 +87,8 @@ export function NavDocuments({
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
-        ))}
+          )
+        })}
         <SidebarMenuItem>
           <SidebarMenuButton className="text-sidebar-foreground/70">
             <IconDots className="text-sidebar-foreground/70" />
