@@ -133,6 +133,54 @@ supabase start
 docker compose up phoenix phoenix-db
 ```
 
+### Container Verification After Changes
+
+**CRITICAL: After making changes to any service, always verify containers are running without errors.**
+
+After modifying code in any service (frontend, backend, database migrations, etc.):
+
+1. **Check container status**:
+   ```bash
+   docker compose ps
+   ```
+   All containers should show `(healthy)` or at least `Up` status. Containers in `(health: starting)` status may need more time (up to 2 minutes for `ai` service).
+
+2. **Check logs for errors** (focus on modified services):
+   ```bash
+   # Check specific service logs
+   docker compose logs <service_name> --tail 50
+   
+   # Examples:
+   docker compose logs ai --tail 50
+   docker compose logs web --tail 50
+   ```
+
+3. **Restart affected containers** if needed:
+   ```bash
+   # Restart specific service
+   docker compose restart <service_name>
+   
+   # Or recreate to pick up environment variable changes
+   docker compose up -d --force-recreate <service_name>
+   ```
+
+4. **Verify health endpoints**:
+   ```bash
+   # AI service health check
+   curl http://localhost:8000/health
+   
+   # Web service (should return HTML)
+   curl http://localhost:5173
+   ```
+
+5. **Common issues to check**:
+   - Environment variables not loaded → Use `--force-recreate` instead of `restart`
+   - Import errors → Check logs for `ModuleNotFoundError` or `ImportError`
+   - Port conflicts → Check if ports are already in use
+   - Health check failures → Review logs for startup errors
+
+**Best Practice**: After any code changes, always verify the affected container(s) are running correctly before marking tasks as complete.
+
 ### Database Operations
 ```bash
 # Create migration (ONLY command allowed)

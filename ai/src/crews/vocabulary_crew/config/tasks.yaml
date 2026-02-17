@@ -1,21 +1,63 @@
 vocabulary_task:
   description: >
-    The user asked for a new word to learn. Suggest exactly one word in the target language.
-
-    User message: {message}
-
-    Recent conversation:
-    {history}
-
-    Context: source language {source_language}, target language {target_language}.
-
-    Return a word card with:
-    - word: the word in the target language
-    - translation: meaning in the user's language
-    - example_sentence: one natural sentence using the word in the target language
-    - definition: optional short definition or usage note (can be null)
-
-    Keep the example sentence concise and practical.
+    Teach the user a new word based on their request: {message}
+    
+    Source language: {source_language}
+    Target language: {target_language}
+    User context: {user_context}
+    Conversation history: {history}
+    Used words (already in user's word_pairs): {used_words}
+    
+    CRITICAL REQUIREMENT - YOU MUST FOLLOW THIS:
+    
+    Before suggesting ANY word, you MUST:
+    1. Parse the used_words JSON parameter
+    2. Extract the "words" array (all words already learned, case-insensitive)
+    3. Extract the "pairs" array (all word pairs already learned, format "word1:word2")
+    4. Check your proposed word (lowercase) against the "words" array
+    5. Check your proposed pair (lowercase, both directions) against the "pairs" array
+    6. If your word matches ANY entry (case-insensitive), you MUST choose a DIFFERENT word
+    
+    Example check process:
+    - Proposed word: "perspicacious" → normalized: "perspicacious"
+    - Check: Is "perspicacious" in used_words.words? If YES → REJECT, choose another word
+    - Check: Is "perspicacious:..." in used_words.pairs? If YES → REJECT, choose another word
+    
+    The used_words parameter is a JSON object with:
+    - "words": array of individual words already learned (case-insensitive, lowercase)
+    - "pairs": array of word pairs in format "word1:word2" (both directions included, lowercase)
+    
+    You MUST NOT suggest:
+    1. Any word that appears in the "words" array (case-insensitive comparison)
+    2. Any word pair that matches a pair in the "pairs" array (in either direction)
+    
+    If you are unsure whether a word is already used, choose a DIFFERENT word to be safe.
+    
+    Your task is to:
+    1. Parse used_words JSON and extract words/pairs arrays
+    2. Choose a NEW word that is NOT in used_words.words AND whose pair is NOT in used_words.pairs
+    3. Verify your choice by checking against the arrays (case-insensitive)
+    4. If verification fails, choose a different word
+    5. Provide the word, translation, example sentence, and definition
+    6. Offer to save using save_word_pair tool
+    
+    When offering to save, be enthusiastic and helpful. For example: "Would you like me to save 
+    'bonjour → hello' to your flashcard deck for practice?" or "I can add this word to your 
+    collection right now!"
+    
+    If the user confirms or asks to save, use the save_word_pair tool with:
+    - source_word: the word in the target language (the new word)
+    - translated_word: the translation in the user's native language
+    - context_sentence: the example sentence
+    
+    Return your response as a JSON object with:
+    {{
+      "word": "new word to learn",
+      "translation": "translation or meaning",
+      "example_sentence": "example sentence",
+      "definition": "brief definition"
+    }}
   expected_output: >
-    JSON with word, translation, example_sentence, definition (string or null).
-  agent: vocabulary_specialist
+    A JSON object with word, translation, example_sentence, and definition.
+    Also include a friendly offer to save the word pair using the save_word_pair tool.
+  agent: vocabulary_agent
