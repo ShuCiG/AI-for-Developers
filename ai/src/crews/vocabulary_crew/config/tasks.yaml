@@ -1,0 +1,21 @@
+vocabulary_task:
+  description: >
+    The user asked for a new word to learn. Suggest exactly one word in the target language.
+
+    User message: {message}
+
+    Recent conversation:
+    {history}
+
+    Context: source language {source_language}, target language {target_language}.
+
+    Return a word card with:
+    - word: the word in the target language
+    - translation: meaning in the user's language
+    - example_sentence: one natural sentence using the word in the target language
+    - definition: optional short definition or usage note (can be null)
+
+    Keep the example sentence concise and practical.
+  expected_output: >
+    JSON with word, translation, example_sentence, definition (string or null).
+  agent: vocabulary_specialist

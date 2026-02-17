@@ -177,7 +177,9 @@ supabase stop
 1. **Web App**: Open http://localhost:5173
 2. **Sign Up**: Create a new account via the signup page
 3. **Generate Phrases**: Navigate to the "Random Phrase" page to see AI in action
-4. **Monitor AI**: Open http://localhost:6006 to view AI traces and metrics in Phoenix
+4. **Language Tutor Chat**: Open **Chat** from the sidebar. Ask for translations, new vocabulary, or grammar help. When the assistant shows a word card, use **"Add to my list"** to save the word pair to your **Word Pairs** list. Use the **Help** button next to the input for a short guide and example prompts.
+5. **Word Pairs**: View and manage your saved word pairs (including those added from chat) on the **Word Pairs** page
+6. **Monitor AI**: Open http://localhost:6006 to view AI traces and metrics in Phoenix
 
 ### 8. Verify Everything Works
 
