@@ -33,13 +33,42 @@ export function useRandomPhrase(): UseRandomPhraseReturn {
       setPhrase(null)
 
       // Fetch three random words from Supabase
+      // Only use seed words (user_id IS NULL) for phrase generation
       // Using a random ordering approach with limit
       const { data: randomWords, error: wordsError } = await supabase
         .from('words')
         .select('*')
+        .is('user_id', null) // Only seed words, not user-specific words
         .limit(100) // Get a sample to pick from
 
       if (wordsError) {
+        // If error is about missing column, try without filter (backward compatibility)
+        if (wordsError.message?.includes('user_id') || wordsError.message?.includes('does not exist') || wordsError.message?.includes('column')) {
+          console.warn('user_id column might not exist, fetching all words without filter')
+          const { data: fallbackWords, error: fallbackError } = await supabase
+            .from('words')
+            .select('*')
+            .limit(100)
+          
+          if (fallbackError) {
+            throw new Error(`Failed to fetch words: ${fallbackError.message}`)
+          }
+          
+          if (!fallbackWords || fallbackWords.length === 0) {
+            throw new Error('No words found in the database')
+          }
+          
+          // Pick 3 random words from the sample
+          const shuffled = [...fallbackWords].sort(() => 0.5 - Math.random())
+          const selectedWords = shuffled.slice(0, Math.min(3, fallbackWords.length))
+          setWords(selectedWords)
+          
+          // Generate phrase using the AI service
+          const wordStrings = selectedWords.map(w => w.word)
+          const response: RandomPhraseResponse = await generateRandomPhrase(wordStrings)
+          setPhrase(response.phrase)
+          return
+        }
         throw new Error(`Failed to fetch words: ${wordsError.message}`)
       }
 

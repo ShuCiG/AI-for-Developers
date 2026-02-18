@@ -16,18 +16,18 @@ class VocabularyCrew:
         Initialize VocabularyCrew with user context for tools.
         
         Args:
-            user_id: The user's UUID (needed for save_word_pair tool)
+            user_id: The user's UUID (needed for save_word tool)
         """
         super().__init__()
         self.user_id = user_id
     
     @agent
     def vocabulary_agent(self) -> Agent:
-        """Create the vocabulary agent with save_word_pair tool."""
-        from src.tools.save_word_pair_tool import SaveWordPairTool
+        """Create the vocabulary agent with save_word tool."""
+        from src.tools.save_word_tool import SaveWordTool
         
         # Initialize tool with user_id
-        save_tool = SaveWordPairTool(user_id=self.user_id)
+        save_tool = SaveWordTool(user_id=self.user_id)
         
         return Agent(
             config=self.agents_config["vocabulary_agent"],

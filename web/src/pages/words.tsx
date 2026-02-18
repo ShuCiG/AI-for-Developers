@@ -9,6 +9,47 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { IconChevronUp, IconChevronDown } from '@tabler/icons-react'
+
+type SortColumn = 'id' | 'word' | 'created_at'
+
+interface SortableHeaderProps {
+  column: SortColumn
+  label: string
+  currentSortBy: SortColumn
+  currentSortOrder: 'asc' | 'desc'
+  onSort: (column: SortColumn) => void
+  className?: string
+}
+
+function SortableHeader({
+  column,
+  label,
+  currentSortBy,
+  currentSortOrder,
+  onSort,
+  className,
+}: SortableHeaderProps) {
+  const isActive = currentSortBy === column
+  const Icon = currentSortOrder === 'asc' ? IconChevronUp : IconChevronDown
+  const isRightAligned = className?.includes('text-right')
+
+  return (
+    <TableHead className={className}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onSort(column)}
+        className={`h-auto p-0 font-medium hover:bg-transparent ${isRightAligned ? 'ml-auto' : ''}`}
+      >
+        <span className={`flex items-center gap-2 ${isRightAligned ? 'flex-row-reverse' : ''}`}>
+          {label}
+          {isActive && <Icon size={16} className="text-muted-foreground" />}
+        </span>
+      </Button>
+    </TableHead>
+  )
+}
 
 export default function WordsPage() {
   const {
@@ -17,6 +58,9 @@ export default function WordsPage() {
     currentPage,
     totalPages,
     totalCount,
+    sortBy,
+    sortOrder,
+    setSorting,
     goToNextPage,
     goToPreviousPage,
   } = useWords()
@@ -55,9 +99,29 @@ export default function WordsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[100px]">ID</TableHead>
-                      <TableHead>Word</TableHead>
-                      <TableHead className="text-right">Created At</TableHead>
+                      <SortableHeader
+                        column="id"
+                        label="ID"
+                        currentSortBy={sortBy}
+                        currentSortOrder={sortOrder}
+                        onSort={setSorting}
+                        className="w-[100px]"
+                      />
+                      <SortableHeader
+                        column="word"
+                        label="Word"
+                        currentSortBy={sortBy}
+                        currentSortOrder={sortOrder}
+                        onSort={setSorting}
+                      />
+                      <SortableHeader
+                        column="created_at"
+                        label="Created At"
+                        currentSortBy={sortBy}
+                        currentSortOrder={sortOrder}
+                        onSort={setSorting}
+                        className="text-right"
+                      />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
