@@ -397,9 +397,9 @@ async def run_vocabulary(
     # Initialize crew with user_id for tool access
     crew_instance = VocabularyCrew(user_id=user_id)
     
-    # Get list of already used words from user's word_pairs
+    # Get list of already used words from user's words table and word_pairs table
     # Store both individual words and pairs to avoid duplicates
-    # Use service role key to bypass RLS and access user's word_pairs
+    # Use service role key to bypass RLS and access user's data
     used_words = set()
     used_pairs = set()  # Store normalized pairs to check both directions
     try:
@@ -408,24 +408,59 @@ async def run_vocabulary(
             supabase_service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
             if supabase_service_key:
                 supabase_admin = create_client(SUPABASE_URL, supabase_service_key)
-                used_words_response = supabase_admin.table("word_pairs").select("word1, word2").eq("user_id", user_id).execute()
+                
+                # Get individual words from words table (user-specific words)
+                used_words_response = supabase_admin.table("words").select("word").eq("user_id", user_id).execute()
+                if used_words_response.data:
+                    for word_data in used_words_response.data:
+                        word = (word_data.get("word") or "").strip().lower()
+                        if word:
+                            used_words.add(word)
+                
+                # Get word pairs from word_pairs table
+                used_pairs_response = supabase_admin.table("word_pairs").select("word1, word2").eq("user_id", user_id).execute()
+                if used_pairs_response.data:
+                    for pair in used_pairs_response.data:
+                        word1 = (pair.get("word1") or "").strip().lower()
+                        word2 = (pair.get("word2") or "").strip().lower()
+                        if word1:
+                            used_words.add(word1)
+                        if word2:
+                            used_words.add(word2)
+                        # Also store pairs in both directions for exact match checking
+                        if word1 and word2:
+                            used_pairs.add(f"{word1}:{word2}")
+                            used_pairs.add(f"{word2}:{word1}")
             else:
                 # Fallback to anon key (may fail due to RLS)
                 print("WARNING: SUPABASE_SERVICE_ROLE_KEY not set, using anon key (may fail due to RLS)")
-                used_words_response = supabase.table("word_pairs").select("word1, word2").eq("user_id", user_id).execute()
-            
-            if used_words_response.data:
-                for pair in used_words_response.data:
-                    word1 = (pair.get("word1") or "").strip().lower()
-                    word2 = (pair.get("word2") or "").strip().lower()
-                    if word1:
-                        used_words.add(word1)
-                    if word2:
-                        used_words.add(word2)
-                    # Also store pairs in both directions for exact match checking
-                    if word1 and word2:
-                        used_pairs.add(f"{word1}:{word2}")
-                        used_pairs.add(f"{word2}:{word1}")
+                # Try to get words from words table
+                try:
+                    used_words_response = supabase.table("words").select("word").eq("user_id", user_id).execute()
+                    if used_words_response.data:
+                        for word_data in used_words_response.data:
+                            word = (word_data.get("word") or "").strip().lower()
+                            if word:
+                                used_words.add(word)
+                except Exception as e:
+                    print(f"Warning: Could not fetch words from words table: {e}")
+                
+                # Try to get word pairs
+                try:
+                    used_pairs_response = supabase.table("word_pairs").select("word1, word2").eq("user_id", user_id).execute()
+                    if used_pairs_response.data:
+                        for pair in used_pairs_response.data:
+                            word1 = (pair.get("word1") or "").strip().lower()
+                            word2 = (pair.get("word2") or "").strip().lower()
+                            if word1:
+                                used_words.add(word1)
+                            if word2:
+                                used_words.add(word2)
+                            if word1 and word2:
+                                used_pairs.add(f"{word1}:{word2}")
+                                used_pairs.add(f"{word2}:{word1}")
+                except Exception as e:
+                    print(f"Warning: Could not fetch word pairs: {e}")
     except Exception as e:
         print(f"Error fetching used words: {e}")
         import traceback
@@ -643,6 +678,216 @@ async def classify_difficulty(word1: str, word2: str, user_context: str):
     )
 
 
+@traceable
+async def run_router(
+    message: str,
+    history: list
+):
+    """
+    Run router crew to classify user intent.
+    
+    Args:
+        message: User's message
+        history: Conversation history
+        
+    Returns:
+        RouterOutput (Pydantic model) with intent, reasoning, source_language, target_language
+    """
+    from crews.tutor_router_crew.crew import TutorRouterCrew
+    from crews.tutor_router_crew.schemas import RouterOutput
+    
+    # Initialize crew
+    crew_instance = TutorRouterCrew()
+    
+    # Format history for crew inputs
+    history_str = json.dumps(history) if history else "[]"
+    
+    inputs = {
+        "message": message,
+        "history": history_str
+    }
+    
+    result = await crew_instance.crew().kickoff_async(inputs=inputs)
+    
+    # Extract RouterOutput from result
+    if hasattr(result, 'pydantic'):
+        router_output = result.pydantic
+    else:
+        # Fallback - try to parse from raw
+        if hasattr(result, 'raw'):
+            try:
+                raw_text = str(result.raw)
+                parsed = json.loads(raw_text)
+                router_output = RouterOutput(
+                    intent=parsed.get('intent', 'translation'),
+                    reasoning=parsed.get('reasoning', ''),
+                    source_language=parsed.get('source_language'),
+                    target_language=parsed.get('target_language')
+                )
+            except (json.JSONDecodeError, Exception):
+                # Default fallback
+                router_output = RouterOutput(
+                    intent='translation',
+                    reasoning='Unable to classify intent',
+                    source_language=None,
+                    target_language=None
+                )
+        else:
+            router_output = RouterOutput(
+                intent='translation',
+                reasoning='Unable to classify intent',
+                source_language=None,
+                target_language=None
+            )
+    
+    return router_output
+
+
+@traceable
+async def run_general_tutor(
+    message: str,
+    history: list,
+    source_language: Optional[str] = None,
+    target_language: Optional[str] = None,
+    user_context: str = ""
+) -> dict:
+    """
+    Run general tutor crew for grammar, examples, practice, cultural context, etc.
+    
+    Args:
+        message: User's message
+        history: Conversation history
+        source_language: Source language (optional)
+        target_language: Target language (optional)
+        user_context: User context string
+        
+    Returns:
+        Structured response: { response_type: "text", content: "..." }
+    """
+    from crews.general_tutor_crew.crew import GeneralTutorCrew
+    
+    # Initialize crew
+    crew_instance = GeneralTutorCrew()
+    
+    # Format history for crew inputs
+    history_str = json.dumps(history) if history else "[]"
+    
+    inputs = {
+        "message": message,
+        "history": history_str,
+        "source_language": source_language or "English",
+        "target_language": target_language or "English",
+        "user_context": user_context or ""
+    }
+    
+    result = await crew_instance.crew().kickoff_async(inputs=inputs)
+    
+    # Extract content from result
+    content = ""
+    raw_response = None
+    
+    if hasattr(result, 'pydantic'):
+        tutor_output = result.pydantic
+        content = tutor_output.content
+        raw_response = tutor_output.model_dump_json(indent=2)
+    elif hasattr(result, 'raw'):
+        content = str(result.raw)
+        raw_response = content
+    else:
+        content = str(result)
+        raw_response = content
+    
+    # Return structured response
+    response = {
+        "response_type": "text",
+        "content": content
+    }
+    
+    if raw_response and raw_response != content:
+        response["raw"] = raw_response
+    
+    return response
+
+
+@traceable
+async def handle_off_topic(
+    message: str,
+    history: list,
+    user_context: str = ""
+) -> dict:
+    """
+    Handle off-topic requests with a polite refusal.
+    
+    Args:
+        message: User's message (off-topic)
+        history: Conversation history
+        user_context: User context string
+        
+    Returns:
+        Structured response: { response_type: "text", content: "..." }
+    """
+    from crews.general_tutor_crew.crew import GeneralTutorCrew
+    
+    # Initialize crew
+    crew_instance = GeneralTutorCrew()
+    
+    # Format history for crew inputs
+    history_str = json.dumps(history) if history else "[]"
+    
+    # Create a special prompt for off-topic refusal
+    # IMPORTANT: This is a REFUSAL, not a helpful response to the off-topic question
+    off_topic_message = (
+        "You are a language learning tutor. A user asked you a question that is NOT about language learning.\n\n"
+        f"Their question was: \"{message}\"\n\n"
+        "CRITICAL INSTRUCTIONS:\n"
+        "1. DO NOT answer their question. DO NOT provide instructions, explanations, or information about cooking, recipes, or any non-language topics.\n"
+        "2. Politely explain that you specialize ONLY in language learning.\n"
+        "3. List what you CAN help with (translations, vocabulary, grammar, examples, practice, cultural context).\n"
+        "4. Suggest language learning examples they could ask instead.\n"
+        "5. Keep your response brief (2-3 sentences) and friendly.\n\n"
+        "Example of what you should say:\n"
+        "\"I'm sorry, but I specialize in language learning and can only help with translations, vocabulary, grammar, and language practice. "
+        "For example, you could ask 'How do you say hello in Polish?' or 'Give me a new word to learn.'\"\n\n"
+        "Now respond to the user's off-topic question with a polite refusal."
+    )
+    
+    inputs = {
+        "message": off_topic_message,
+        "history": history_str,
+        "source_language": "English",
+        "target_language": "English",
+        "user_context": user_context or ""
+    }
+    
+    result = await crew_instance.crew().kickoff_async(inputs=inputs)
+    
+    # Extract content from result
+    content = ""
+    raw_response = None
+    
+    if hasattr(result, 'pydantic'):
+        tutor_output = result.pydantic
+        content = tutor_output.content
+        raw_response = tutor_output.model_dump_json(indent=2)
+    elif hasattr(result, 'raw'):
+        content = str(result.raw)
+        raw_response = content
+    else:
+        content = str(result)
+        raw_response = content
+    
+    # Return structured response
+    response = {
+        "response_type": "text",
+        "content": content
+    }
+    
+    if raw_response and raw_response != content:
+        response["raw"] = raw_response
+    
+    return response
+
+
 @app.route("/health", methods=["GET"])
 async def health():
     """Health check endpoint."""
@@ -812,7 +1057,7 @@ async def post_chat():
         {
             "message": "User's message",
             "history": [{"role": "user", "content": "..."}, ...],
-            "intent": "translation" | "vocabulary" | null
+            "intent": "translation" | "vocabulary" | "grammar" | "example_sentences" | "practice" | "cultural" | "save_word" | "off_topic" | null
         }
     
     Headers:
@@ -826,6 +1071,10 @@ async def post_chat():
             "message": "...",  // for save_confirmation
             "tool_results": [...]  // optional array of tool execution results
         }
+    
+    Note:
+        If intent is not provided, the router crew will automatically classify the intent.
+        Off-topic requests will receive a polite refusal explaining the tutor's specialization.
     """
     try:
         data = request.get_json()
@@ -841,37 +1090,105 @@ async def post_chat():
         if not isinstance(history, list):
             return jsonify({"error": "'history' must be an array"}), 400
         
-        intent = data.get("intent")  # Optional: "translation" | "vocabulary" | null
-        
-        # Auto-detect intent if not specified
-        if not intent:
-            message_lower = message.lower()
-            vocabulary_keywords = [
-                "new word", "teach me", "learn", "vocabulary", "word to learn",
-                "give me a word", "show me a word", "another word", "new vocabulary"
-            ]
-            if any(keyword in message_lower for keyword in vocabulary_keywords):
-                intent = "vocabulary"
+        intent = data.get("intent")  # Optional: can be null for auto-detection
         
         # Get user context
         user_id = request.user.id
         user_context = await get_user_context(user_id)
         
+        # Pre-check for obvious off-topic patterns before router
+        # This helps catch cases where router might misclassify
+        message_lower = message.lower()
+        off_topic_patterns = [
+            "how to cook",
+            "how to make",
+            "recipe for",
+            "recipe to",
+            "how to prepare",
+            "how to bake",
+            "how to fry",
+            "how to grill",
+            "cooking instructions",
+            "how to do",  # Generic how-to (not "how to say")
+            "how to use",  # Generic how-to (not language-related)
+        ]
+        
+        # Check if message contains off-topic patterns but NOT language learning patterns
+        language_patterns = [
+            "how to say",
+            "how do you say",
+            "translate",
+            "translation",
+            "in english",
+            "in polish",
+            "in spanish",
+            "in french",
+            "in german",
+            "in italian",
+            "in russian",
+            "in japanese",
+            "in chinese",
+            "word for",
+            "phrase for",
+        ]
+        
+        is_off_topic_pattern = any(pattern in message_lower for pattern in off_topic_patterns)
+        is_language_pattern = any(pattern in message_lower for pattern in language_patterns)
+        
+        # If intent not specified, use router to classify
+        source_language = None
+        target_language = None
+        if not intent:
+            router_output = await run_router(message, history)
+            intent = router_output.intent
+            source_language = router_output.source_language
+            target_language = router_output.target_language
+            
+            # Override router classification if we detect obvious off-topic pattern
+            # but router classified it as something else (except if it's clearly language-related)
+            if is_off_topic_pattern and not is_language_pattern and intent != "off_topic":
+                intent = "off_topic"
+                print(f"DEBUG: Overriding router intent to 'off_topic' for message: {message[:50]}...")
+        else:
+            # Even if intent is explicitly provided, check for obvious off-topic patterns
+            # and override if detected (unless it's clearly language-related)
+            if is_off_topic_pattern and not is_language_pattern and intent != "off_topic":
+                intent = "off_topic"
+                print(f"DEBUG: Overriding explicit intent to 'off_topic' for message: {message[:50]}...")
+        
         # Route to appropriate crew based on intent
-        # If no intent specified, default to translation
-        if intent == "vocabulary":
+        if intent == "off_topic":
+            result = await handle_off_topic(
+                message=message,
+                history=history,
+                user_context=user_context or ""
+            )
+        elif intent == "vocabulary" or intent == "new_word":
             result = await run_vocabulary(
                 message=message,
                 history=history,
+                source_language=source_language,
+                target_language=target_language,
+                user_id=user_id,
+                user_context=user_context or ""
+            )
+        elif intent == "translation":
+            result = await run_translation(
+                message=message,
+                history=history,
+                source_language=source_language,
+                target_language=target_language,
                 user_id=user_id,
                 user_context=user_context or ""
             )
         else:
-            # Default to translation
-            result = await run_translation(
+            # Handle other intents: grammar, example_sentences, practice, cultural, save_word
+            # Use general tutor crew
+            result = await run_general_tutor(
                 message=message,
                 history=history,
-                user_id=user_id,
+                source_language=source_language,
+                target_language=target_language,
                 user_context=user_context or ""
             )
         

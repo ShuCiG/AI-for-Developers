@@ -7,7 +7,6 @@ import {
   IconMessageCircle,
   IconPuzzle,
   IconSparkles,
-  IconMessageCircle,
 } from "@tabler/icons-react"
 
 import { NavDocuments } from "@/components/nav-documents"
