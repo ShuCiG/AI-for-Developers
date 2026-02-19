@@ -10,6 +10,7 @@ import WordsPage from './pages/words'
 import RandomPhrasePage from './pages/random-phrase'
 import WordPairsPage from './pages/word-pairs'
 import WordsGamePage from './pages/words-game'
+import CardGamePage from './pages/card-game'
 import ChatPage from './pages/chat'
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
             <Route path="/random-phrase" element={<RandomPhrasePage />} />
             <Route path="/word-pairs" element={<WordPairsPage />} />
             <Route path="/words-game" element={<WordsGamePage />} />
+            <Route path="/card-game" element={<CardGamePage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:chatId" element={<ChatPage />} />
           </Route>
