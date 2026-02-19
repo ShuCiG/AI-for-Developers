@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import { useUser } from "@/contexts/UserContext"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,6 +27,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { IconDotsVertical, IconEdit, IconTrash, IconSparkles, IconBrain } from "@tabler/icons-react"
 import { useWordPairs, useWordPairMutations } from "@/hooks/use-word-pairs"
 import { generateExampleSentences, classifyDifficulty, type DifficultyClassificationResponse } from "@/lib/ai-service"
 
@@ -69,6 +77,50 @@ export default function WordPairsPage() {
     word2: "",
     description: "",
   })
+
+  // Column widths state
+  const [columnWidths, setColumnWidths] = useState({
+    word1: 150,
+    word2: 150,
+    description: 200,
+    actions: 120,
+  })
+
+  // Resizing state
+  const [resizingColumn, setResizingColumn] = useState<string | null>(null)
+  const resizeStartX = useRef<number>(0)
+  const resizeStartWidth = useRef<number>(0)
+
+  const handleResizeStart = useCallback((column: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startWidth = columnWidths[column as keyof typeof columnWidths]
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault()
+      const diff = moveEvent.clientX - startX
+      const newWidth = Math.max(100, startWidth + diff)
+      setColumnWidths((prev) => ({
+        ...prev,
+        [column]: newWidth,
+      }))
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      setResizingColumn(null)
+    }
+
+    setResizingColumn(column)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [columnWidths])
 
   const handleCreate = async () => {
     if (!user?.id) {
@@ -238,106 +290,169 @@ export default function WordPairsPage() {
             <div className="text-center py-4">Loading word pairs...</div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>First Word</TableHead>
-                    <TableHead>Second Word</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {wordPairs.map((pair) => (
-                    <TableRow key={pair.id}>
-                      <TableCell>
-                        <Badge variant="outline">{pair.word1}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{pair.word2}</Badge>
-                      </TableCell>
-                      <TableCell>{pair.description || "-"}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleGenerateExamples(pair)}
-                          >
-                            Generate Examples
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleClassifyDifficulty(pair)}
-                          >
-                            Classify Difficulty
-                          </Button>
-                          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="sm" onClick={() => openEditDialog(pair)}>
-                                Edit
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Edit Word Pair</DialogTitle>
-                                <DialogDescription>
-                                  Update the word pair details
-                                </DialogDescription>
-                              </DialogHeader>
-                              <FieldGroup>
-                                <Field>
-                                  <FieldLabel>First Word</FieldLabel>
-                                  <Input
-                                    value={formData.word1}
-                                    onChange={(e) => setFormData({ ...formData, word1: e.target.value })}
-                                    placeholder="Enter first word"
-                                  />
-                                </Field>
-                                <Field>
-                                  <FieldLabel>Second Word</FieldLabel>
-                                  <Input
-                                    value={formData.word2}
-                                    onChange={(e) => setFormData({ ...formData, word2: e.target.value })}
-                                    placeholder="Enter second word"
-                                  />
-                                </Field>
-                                <Field>
-                                  <FieldLabel>Description (Optional)</FieldLabel>
-                                  <Input
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    placeholder="Enter description"
-                                  />
-                                </Field>
-                                {mutationError && (
-                                  <FieldError>{mutationError}</FieldError>
-                                )}
-                              </FieldGroup>
-                              <DialogFooter>
-                                <Button
-                                  onClick={handleUpdate}
-                                  disabled={mutationLoading || !formData.word1 || !formData.word2}
-                                >
-                                  {mutationLoading ? "Updating..." : "Update"}
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(pair.id)}
-                          >
-                            Delete
-                          </Button>
+              <div className="rounded-md border overflow-x-auto">
+                <Table className="min-w-full" style={{ tableLayout: 'fixed', width: '100%' }}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead 
+                        style={{ width: `${columnWidths.word1}px`, minWidth: `${columnWidths.word1}px`, maxWidth: `${columnWidths.word1}px` }}
+                        className="relative select-none"
+                      >
+                        <div className="flex items-center justify-between pr-2">
+                          <span className="truncate">First Word</span>
+                          <div
+                            className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10"
+                            onMouseDown={(e) => handleResizeStart('word1', e)}
+                            style={{ userSelect: 'none' }}
+                          />
                         </div>
-                      </TableCell>
+                      </TableHead>
+                      <TableHead 
+                        style={{ width: `${columnWidths.word2}px`, minWidth: `${columnWidths.word2}px`, maxWidth: `${columnWidths.word2}px` }}
+                        className="relative select-none"
+                      >
+                        <div className="flex items-center justify-between pr-2">
+                          <span className="truncate">Second Word</span>
+                          <div
+                            className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10"
+                            onMouseDown={(e) => handleResizeStart('word2', e)}
+                            style={{ userSelect: 'none' }}
+                          />
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        style={{ width: `${columnWidths.description}px`, minWidth: `${columnWidths.description}px`, maxWidth: `${columnWidths.description}px` }}
+                        className="relative select-none"
+                      >
+                        <div className="flex items-center justify-between pr-2">
+                          <span className="truncate">Description</span>
+                          <div
+                            className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10"
+                            onMouseDown={(e) => handleResizeStart('description', e)}
+                            style={{ userSelect: 'none' }}
+                          />
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        style={{ width: `${columnWidths.actions}px`, minWidth: `${columnWidths.actions}px`, maxWidth: `${columnWidths.actions}px` }}
+                        className="text-right sticky right-0 bg-background z-20 relative select-none shadow-[inset_1px_0_0_0_hsl(var(--border))]"
+                      >
+                        <div className="flex items-center justify-end pr-2">
+                          <span>Actions</span>
+                        </div>
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {wordPairs.map((pair) => (
+                      <TableRow key={pair.id}>
+                        <TableCell 
+                          style={{ width: `${columnWidths.word1}px`, minWidth: `${columnWidths.word1}px`, maxWidth: `${columnWidths.word1}px` }}
+                          className="overflow-hidden text-left"
+                        >
+                          <Badge variant="outline" className="truncate max-w-full">{pair.word1}</Badge>
+                        </TableCell>
+                        <TableCell 
+                          style={{ width: `${columnWidths.word2}px`, minWidth: `${columnWidths.word2}px`, maxWidth: `${columnWidths.word2}px` }}
+                          className="overflow-hidden text-left"
+                        >
+                          <Badge variant="outline" className="truncate max-w-full">{pair.word2}</Badge>
+                        </TableCell>
+                        <TableCell 
+                          style={{ width: `${columnWidths.description}px`, minWidth: `${columnWidths.description}px`, maxWidth: `${columnWidths.description}px` }}
+                          className="overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                        >
+                          {pair.description || "-"}
+                        </TableCell>
+                        <TableCell 
+                          className="text-right sticky right-0 bg-background z-20 shadow-[inset_1px_0_0_0_hsl(var(--border))]" 
+                          style={{ width: `${columnWidths.actions}px`, minWidth: `${columnWidths.actions}px`, maxWidth: `${columnWidths.actions}px` }}
+                        >
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-muted">
+                                <IconDotsVertical className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditDialog(pair)}>
+                                <IconEdit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleGenerateExamples(pair)}>
+                                <IconSparkles className="mr-2 h-4 w-4" />
+                                Generate Examples
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleClassifyDifficulty(pair)}>
+                                <IconBrain className="mr-2 h-4 w-4" />
+                                Classify Difficulty
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleDelete(pair.id)}
+                                variant="destructive"
+                              >
+                                <IconTrash className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Edit Dialog - moved outside table */}
+              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Word Pair</DialogTitle>
+                    <DialogDescription>
+                      Update the word pair details
+                    </DialogDescription>
+                  </DialogHeader>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel>First Word</FieldLabel>
+                      <Input
+                        value={formData.word1}
+                        onChange={(e) => setFormData({ ...formData, word1: e.target.value })}
+                        placeholder="Enter first word"
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Second Word</FieldLabel>
+                      <Input
+                        value={formData.word2}
+                        onChange={(e) => setFormData({ ...formData, word2: e.target.value })}
+                        placeholder="Enter second word"
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Description (Optional)</FieldLabel>
+                      <Input
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        placeholder="Enter description"
+                      />
+                    </Field>
+                    {mutationError && (
+                      <FieldError>{mutationError}</FieldError>
+                    )}
+                  </FieldGroup>
+                  <DialogFooter>
+                    <Button
+                      onClick={handleUpdate}
+                      disabled={mutationLoading || !formData.word1 || !formData.word2}
+                    >
+                      {mutationLoading ? "Updating..." : "Update"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               
               {wordPairs.length === 0 && (
                 <div className="text-center py-4 text-gray-500">
