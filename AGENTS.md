@@ -18,9 +18,10 @@ Wordpan is a full-stack AI-powered web application template demonstrating modern
 When working with Supabase migrations:
 - Use `supabase migration new <name>` to create new migration files only
 - **DO NOT** run `supabase db reset` - it will wipe all data
-- **DO NOT** run `supabase db push` - migrations should be applied manually by the developer
+- **DO NOT** run `supabase db reset` - it wipes all data
+- **DO NOT** run `supabase db push` - that is for remote (linked) projects only
 
-Only create migration files. Let the developer apply them manually.
+For local: the developer (or `scripts/setup-and-verify.ps1`) may run `supabase migration up` to apply new migrations without wiping data.
 
 ## Development Guidelines
 
@@ -33,6 +34,15 @@ Only create migration files. Let the developer apply them manually.
 6. All AI operations traced via OpenTelemetry → Phoenix
 7. Backend returns generated phrase + words
 8. Frontend displays result
+
+### Request Flow (Language Tutor Chat)
+1. User opens **Chat** (sidebar). Chats and messages are stored in Supabase (`chats`, `chat_messages`).
+2. User sends a message → Frontend appends to messages, calls `/api/chat` with JWT, `message`, and `history`.
+3. Backend validates JWT, optionally checks chat ownership, then runs the **router** crew to classify intent: `translation`, `new_word`, `general_tutor`, or `off_topic`.
+4. Backend runs the matching specialist: translation crew, vocabulary crew (returns a word card), or general tutor crew. Off-topic gets a polite refusal.
+5. Response: either `{ "content": "..." }` or `{ "response_type": "word_card", "payload": { "word", "translation", "example_sentence", "definition" } }`.
+6. Frontend shows the reply; for word cards it renders a card with **"Add to my list"**. On click, the frontend inserts into `word_pairs` via the Supabase client (user JWT). Optional backend endpoint `/api/chat/save-word` exists for server-side save (requires `SUPABASE_SERVICE_ROLE_KEY`).
+7. All AI calls are traced to Phoenix. Chat UI includes a **Help** button with a short guide and example prompts.
 
 ### Authentication Flow
 - Supabase Auth with JWT tokens
@@ -103,6 +113,7 @@ Only create migration files. Let the developer apply them manually.
 - `PHOENIX_COLLECTOR_ENDPOINT` - Phoenix OTLP endpoint
 - `SUPABASE_URL` - Supabase URL (use `http://host.docker.internal:54321` in Docker)
 - `SUPABASE_ANON_KEY` - Supabase anonymous key
+- `SUPABASE_SERVICE_ROLE_KEY` (optional) - For server-side writes (e.g. `/api/chat/save-word`); chat "Add to my list" uses frontend Supabase client without this
 
 **Phoenix** (`phoenix/.env`):
 - `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PASSWORD`
@@ -122,10 +133,61 @@ supabase start
 docker compose up phoenix phoenix-db
 ```
 
+### Container Verification After Changes
+
+**CRITICAL: After making changes to any service, always verify containers are running without errors.**
+
+After modifying code in any service (frontend, backend, database migrations, etc.):
+
+1. **Check container status**:
+   ```bash
+   docker compose ps
+   ```
+   All containers should show `(healthy)` or at least `Up` status. Containers in `(health: starting)` status may need more time (up to 2 minutes for `ai` service).
+
+2. **Check logs for errors** (focus on modified services):
+   ```bash
+   # Check specific service logs
+   docker compose logs <service_name> --tail 50
+   
+   # Examples:
+   docker compose logs ai --tail 50
+   docker compose logs web --tail 50
+   ```
+
+3. **Restart affected containers** if needed:
+   ```bash
+   # Restart specific service
+   docker compose restart <service_name>
+   
+   # Or recreate to pick up environment variable changes
+   docker compose up -d --force-recreate <service_name>
+   ```
+
+4. **Verify health endpoints**:
+   ```bash
+   # AI service health check
+   curl http://localhost:8000/health
+   
+   # Web service (should return HTML)
+   curl http://localhost:5173
+   ```
+
+5. **Common issues to check**:
+   - Environment variables not loaded → Use `--force-recreate` instead of `restart`
+   - Import errors → Check logs for `ModuleNotFoundError` or `ImportError`
+   - Port conflicts → Check if ports are already in use
+   - Health check failures → Review logs for startup errors
+
+**Best Practice**: After any code changes, always verify the affected container(s) are running correctly before marking tasks as complete.
+
 ### Database Operations
 ```bash
 # Create migration (ONLY command allowed)
 supabase migration new <descriptive_name>
+
+# Apply migrations locally (no data wipe; use this, not db reset)
+supabase migration up
 
 # Access database
 supabase db psql
@@ -133,6 +195,13 @@ supabase db psql
 # Open Supabase Studio
 open http://127.0.0.1:54323
 ```
+
+### One-command setup and verify (local)
+From repo root:
+```powershell
+.\scripts\setup-and-verify.ps1
+```
+Starts Supabase (if needed), runs `supabase migration up`, brings up Docker Compose, and checks health of AI and web.
 
 ### Debugging
 - **Frontend**: React DevTools, Vite terminal logs, Network tab

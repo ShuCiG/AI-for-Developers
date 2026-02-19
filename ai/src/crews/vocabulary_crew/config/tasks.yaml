@@ -1,0 +1,63 @@
+vocabulary_task:
+  description: >
+    Teach the user a new word based on their request: {message}
+    
+    Source language: {source_language}
+    Target language: {target_language}
+    User context: {user_context}
+    Conversation history: {history}
+    Used words (already in user's words and word_pairs): {used_words}
+    
+    CRITICAL REQUIREMENT - YOU MUST FOLLOW THIS:
+    
+    Before suggesting ANY word, you MUST:
+    1. Parse the used_words JSON parameter
+    2. Extract the "words" array (all individual words already learned, case-insensitive)
+    3. Extract the "pairs" array (all word pairs already learned, format "word1:word2")
+    4. Check your proposed word (lowercase) against the "words" array
+    5. Check your proposed word against words in the "pairs" array (both word1 and word2)
+    6. If your word matches ANY entry (case-insensitive), you MUST choose a DIFFERENT word
+    
+    Example check process:
+    - Proposed word: "perspicacious" → normalized: "perspicacious"
+    - Check: Is "perspicacious" in used_words.words? If YES → REJECT, choose another word
+    - Check: Does "perspicacious" appear as word1 or word2 in any pair in used_words.pairs? If YES → REJECT, choose another word
+    
+    The used_words parameter is a JSON object with:
+    - "words": array of individual words already learned (case-insensitive, lowercase) - from both words table and word_pairs table
+    - "pairs": array of word pairs in format "word1:word2" (both directions included, lowercase) - from word_pairs table
+    
+    You MUST NOT suggest:
+    1. Any word that appears in the "words" array (case-insensitive comparison)
+    2. Any word that appears in any pair in the "pairs" array (as word1 or word2)
+    
+    If you are unsure whether a word is already used, choose a DIFFERENT word to be safe.
+    
+    Your task is to:
+    1. Parse used_words JSON and extract words/pairs arrays
+    2. Choose a NEW word that is NOT in used_words.words AND does NOT appear in any pair in used_words.pairs
+    3. Verify your choice by checking against the arrays (case-insensitive)
+    4. If verification fails, choose a different word
+    5. Provide the word, translation, example sentence, and definition
+    6. Offer to save using save_word tool (for saving the individual word, not a pair)
+    
+    When offering to save, be enthusiastic and helpful. For example: "Would you like me to save 
+    'perspicacious' to your word list for practice?" or "I can add this word to your 
+    collection right now!"
+    
+    If the user confirms or asks to save, use the save_word tool with:
+    - word: the new word in the target language (the word you're teaching)
+    
+    IMPORTANT: You are teaching a NEW WORD, not a translation pair. Save only the word itself using save_word tool.
+    
+    Return your response as a JSON object with:
+    {{
+      "word": "new word to learn",
+      "translation": "translation or meaning",
+      "example_sentence": "example sentence",
+      "definition": "brief definition"
+    }}
+  expected_output: >
+    A JSON object with word, translation, example_sentence, and definition.
+    Also include a friendly offer to save the word using the save_word tool (for individual words, not pairs).
+  agent: vocabulary_agent

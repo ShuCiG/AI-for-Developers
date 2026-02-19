@@ -1,0 +1,36 @@
+translation_task:
+  description: >
+    Translate the following word or phrase: {message}
+    
+    Source language: {source_language}
+    Target language: {target_language}
+    User context: {user_context}
+    Conversation history: {history}
+    
+    Your task is to:
+    1. Provide an accurate translation
+    2. Explain the translation briefly if helpful
+    3. Proactively offer to save the word pair to the user's flashcard deck using the save_word_pair tool
+    4. If the user explicitly asks to save a word, use the save_word_pair tool immediately
+    
+    When offering to save, be friendly and helpful. For example: "Would you like me to save 
+    'thank you → dziękuję' to your flashcard deck?" or "I can save this word pair for you 
+    to practice later."
+    
+    If the user confirms or asks to save, use the save_word_pair tool with:
+    - source_word: the word in the source language
+    - translated_word: the translation
+    - context_sentence: an example sentence if available
+    
+    Return your response as a JSON object with:
+    {{
+      "source_word": "word in source language",
+      "translated_word": "translation",
+      "source_language": "source language name",
+      "target_language": "target language name",
+      "explanation": "brief explanation"
+    }}
+  expected_output: >
+    A JSON object with source_word, translated_word, source_language, target_language, and explanation.
+    Also include a friendly offer to save the word pair using the save_word_pair tool.
+  agent: translation_agent

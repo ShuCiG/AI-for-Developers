@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/dialog"
 import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
   FieldError,
@@ -208,13 +207,6 @@ export default function WordPairsPage() {
     } finally {
       setLoadingClassification(false)
     }
-  }
-
-  const getDifficultyBadgeVariant = (difficulty: string) => {
-    const lower = difficulty.toLowerCase()
-    if (lower === "beginner") return "default"
-    if (lower === "intermediate") return "secondary"
-    return "destructive"
   }
 
   const getDifficultyBadgeColor = (difficulty: string) => {
