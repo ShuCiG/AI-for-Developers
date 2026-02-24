@@ -250,6 +250,7 @@ The Cloud VM is itself a container inside a Firecracker VM. Docker requires:
 - `fuse-overlayfs` storage driver (configured in `/etc/docker/daemon.json`)
 - `iptables-legacy` (set via `update-alternatives`)
 - Socket permissions: `sudo chmod 666 /var/run/docker.sock` after starting dockerd
+- **`host.docker.internal` does not resolve by default** in nested Docker. The `ai` service in `docker-compose.yml` needs `extra_hosts: ["host.docker.internal:host-gateway"]` so the AI container can reach the Supabase API running on the host at port 54321. Without this, all AI endpoints fail with `[Errno -2] Name or service not known`.
 
 ### .env files
 
