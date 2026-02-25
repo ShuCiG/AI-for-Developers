@@ -225,3 +225,45 @@ Starts Supabase (if needed), runs `supabase migration up`, brings up Docker Comp
 - JWT tokens stored in Supabase client (localStorage)
 - Backend validates all tokens with Supabase before processing
 - Auto-created profiles via database triggers
+
+## Cursor Cloud specific instructions
+
+### Service startup order
+
+1. **Docker daemon** must be running first (Cloud VM does not start it automatically).
+2. **Supabase** (`supabase start`) — pulls/starts ~13 containers; takes ~60-90s on first run. Provides PostgreSQL, Auth, and Studio.
+3. **Docker Compose** (`docker compose up -d --build`) — starts `web`, `ai`, `phoenix`, `phoenix-db`. The `ai` container can take up to 2 minutes to become healthy.
+
+### Key ports
+
+| Service | Port | Health check |
+|---|---|---|
+| Web (Vite) | 5173 | `curl http://localhost:5173` |
+| AI (Flask) | 8000 | `curl http://localhost:8000/health` |
+| Phoenix | 6006 | `curl http://localhost:6006` |
+| Supabase API | 54321 | Started via `supabase start` |
+| Supabase Studio | 54323 | Browser: `http://127.0.0.1:54323` |
+
+### Docker-in-Docker caveats (Cloud VM)
+
+The Cloud VM is itself a container inside a Firecracker VM. Docker requires:
+- `fuse-overlayfs` storage driver (configured in `/etc/docker/daemon.json`)
+- `iptables-legacy` (set via `update-alternatives`)
+- Socket permissions: `sudo chmod 666 /var/run/docker.sock` after starting dockerd
+- **`host.docker.internal` does not resolve by default** in nested Docker. The `ai` service in `docker-compose.yml` needs `extra_hosts: ["host.docker.internal:host-gateway"]` so the AI container can reach the Supabase API running on the host at port 54321. Without this, all AI endpoints fail with `[Errno -2] Name or service not known`.
+
+### .env files
+
+The `.env` files (`web/.env.local`, `ai/.env`, `phoenix/.env`) are gitignored and must be created from `.env.example` templates. Supabase local dev keys are deterministic (same for all local setups). For the AI backend in Docker, use `SUPABASE_URL=http://host.docker.internal:54321` and `PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces`.
+
+### Lint and test commands
+
+- **Frontend lint**: `cd web && pnpm run lint` (pre-existing ESLint errors in the codebase)
+- **Frontend type check**: `cd web && npx tsc --noEmit`
+- **Frontend build**: `cd web && pnpm run build` (has pre-existing TS strict errors; Docker build succeeds)
+- **Backend lint**: `cd ai && uv run ruff check .` (pre-existing unused import warnings)
+- **Backend tests**: `cd ai && uv run pytest` (test directory exists but no tests are written yet)
+
+### AI features require an LLM API key
+
+`GROQ_API_KEY` (or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`) must be set in `ai/.env` for AI features (chat, phrase generation) to function. Without it, the services start but AI endpoints return errors. The rest of the app (auth, word pairs, words, navigation) works without it.
