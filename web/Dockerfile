@@ -1,19 +1,16 @@
 # Base stage
 FROM node:22-alpine AS base
 
-# Enable corepack for pnpm
-RUN corepack enable
-
 WORKDIR /app
 
 # Copy package files
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json package-lock.json* ./
 
 # Development stage
 FROM base AS development
 
 # Install all dependencies (including devDependencies)
-RUN pnpm install --frozen-lockfile
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -21,19 +18,19 @@ COPY . .
 # Expose Vite dev server port
 EXPOSE 5173
 
-CMD ["pnpm", "run", "dev", "--host", "0.0.0.0"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # Builder stage for production
 FROM base AS builder
 
 # Install all dependencies
-RUN pnpm install --frozen-lockfile
+RUN npm ci
 
 # Copy source code
 COPY . .
 
 # Build the application
-RUN pnpm run build
+RUN npm run build
 
 # Production stage
 FROM nginx:alpine AS production

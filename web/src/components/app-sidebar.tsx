@@ -8,6 +8,7 @@ import {
   IconPuzzle,
   IconSparkles,
   IconCards,
+  IconMicrophone,
 } from "@tabler/icons-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -67,6 +68,11 @@ const data = {
       name: "Card Game",
       url: "/card-game",
       icon: IconCards,
+    },
+    {
+      name: "Voice Game",
+      url: "/voice-game",
+      icon: IconMicrophone,
     },
   ],
 }
