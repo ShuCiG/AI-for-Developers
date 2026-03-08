@@ -11,8 +11,10 @@ services:
       - 5173:5173
     restart: unless-stopped
     env_file:
-      - ./web/.env.local
+      - .env
     environment:
+      # In Docker the frontend uses a Vite proxy to reach the ai service,
+      # so VITE_AI_SERVICE_URL must be empty (overrides the value from .env)
       - VITE_AI_SERVICE_URL=
       - VITE_PROXY_AI_TARGET=http://ai:8000
     networks:
@@ -30,7 +32,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - 8000:8000
-    env_file: ./ai/.env
+    env_file: .env
     environment:
       - PORT=8000
     depends_on:
@@ -57,7 +59,7 @@ services:
 
   phoenix:
     image: arizephoenix/phoenix:version-12.4.0
-    env_file: ./phoenix/.env
+    env_file: .env
     ports:
       - "6006:6006"
     restart: unless-stopped
@@ -69,7 +71,7 @@ services:
 
   phoenix-db:
     image: "postgres:16.4-alpine"
-    env_file: ./phoenix/.env
+    env_file: .env
     restart: unless-stopped
     networks:
       - default
@@ -80,6 +82,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  voice-agent:
+    build:
+      context: ./services/voice-agent
+    env_file: .env
+    restart: unless-stopped
+    networks:
+      - default
 
 volumes:
   phoenix-data:

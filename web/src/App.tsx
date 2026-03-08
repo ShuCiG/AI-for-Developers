@@ -12,6 +12,7 @@ import WordPairsPage from './pages/word-pairs'
 import WordsGamePage from './pages/words-game'
 import CardGamePage from './pages/card-game'
 import ChatPage from './pages/chat'
+import VoiceGamePage from './pages/voice-game'
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
             <Route path="/card-game" element={<CardGamePage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:chatId" element={<ChatPage />} />
+            <Route path="/voice-game" element={<VoiceGamePage />} />
           </Route>
 
           {/* Default redirect */}

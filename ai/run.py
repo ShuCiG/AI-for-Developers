@@ -1259,6 +1259,46 @@ async def get_words_game():
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 
+@app.route("/api/livekit/token", methods=["POST"])
+@require_auth
+async def get_livekit_token():
+    """
+    Generate a LiveKit access token for the voice word game.
+
+    Headers:
+        Authorization: Bearer <jwt_token>
+
+    Response:
+        {
+            "token": "<livekit_jwt>",
+            "url": "wss://your-project.livekit.cloud"
+        }
+    """
+    import uuid
+    from livekit.api import AccessToken, VideoGrants
+
+    livekit_api_key = os.getenv("LIVEKIT_API_KEY", "")
+    livekit_api_secret = os.getenv("LIVEKIT_API_SECRET", "")
+    livekit_url = os.getenv("LIVEKIT_URL", "")
+
+    if not livekit_api_key or not livekit_api_secret or not livekit_url:
+        return jsonify({"error": "LiveKit is not configured on the server"}), 503
+
+    user_id = request.user.id
+    room_name = f"wordpan-voice-{user_id}-{uuid.uuid4().hex[:8]}"
+
+    token = (
+        AccessToken(livekit_api_key, livekit_api_secret)
+        .with_identity(user_id)
+        .with_name("Player")
+        .with_grants(VideoGrants(room_join=True, room=room_name))
+        .with_metadata(user_id)
+        .to_jwt()
+    )
+
+    return jsonify({"token": token, "url": livekit_url})
+
+
 if __name__ == "__main__":
     # Run the Flask app
     port = int(os.getenv("PORT", 8000))
